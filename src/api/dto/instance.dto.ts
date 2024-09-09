@@ -43,6 +43,7 @@ export class InstanceDto {
   proxyUsername?: string;
   proxyPassword?: string;
   businessId?: string;
+  chatwootAutoCreate?: boolean;
 }
 
 export class SetPresenceDto {
