@@ -1282,14 +1282,22 @@ export class TypebotService {
           sendTelemetry('/message/sendText');
         }
 
-        await prismaRepository.integrationSession.update({
-          where: {
-            id: session.id,
-          },
-          data: {
-            awaitUser: true,
-          },
-        });
+        if (session) {
+          const existingSession = await prismaRepository.integrationSession.findUnique({
+            where: { id: session.id }
+          });
+
+          if (existingSession) {
+            await prismaRepository.integrationSession.update({
+              where: { id: session.id },
+              data: {
+                awaitUser: true
+              },
+            });
+          } else {
+            console.log(`Sessão ${session.id} não encontrada, ignorando atualização.`);
+          }
+        }
       } else {
         if (!settings?.keepOpen) {
           await prismaRepository.integrationSession.deleteMany({
