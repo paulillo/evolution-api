@@ -25,9 +25,12 @@ import axios from 'axios';
 import { arrayUnique, isURL } from 'class-validator';
 import EventEmitter2 from 'eventemitter2';
 import FormData from 'form-data';
-import { createReadStream } from 'fs';
 import mime from 'mime';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { createReadStream, unlinkSync, writeFileSync } from 'fs';
+import * as os from 'os';
+import { Readable } from 'stream';
 
 export class BusinessStartupService extends ChannelStartupService {
   constructor(
@@ -1014,28 +1017,50 @@ export class BusinessStartupService extends ChannelStartupService {
   }
 
   private async getIdMedia(mediaMessage: any) {
+    let filePath;
+    let fileStream: Readable;
+    let fileName = mediaMessage.fileName || `file_${uuidv4()}.${mediaMessage.mediaType}`;
+    let contentType = mediaMessage.mimetype;
+
+    this.logger.log(`Processando arquivo: ${fileName}`);
+
+    if (isURL(mediaMessage.media)) {
+      const response = await axios.get(mediaMessage.media, { responseType: 'stream' });
+      fileStream = response.data;
+    } else {
+      filePath = join(os.tmpdir(), fileName);
+      const buffer = Buffer.from(mediaMessage.media, 'base64');
+      writeFileSync(filePath, buffer);
+      fileStream = createReadStream(filePath);
+    }
+
     const formData = new FormData();
-
-    const fileStream = createReadStream(mediaMessage.media);
-
-    formData.append('file', fileStream, { filename: 'media', contentType: mediaMessage.mimetype });
-    formData.append('typeFile', mediaMessage.mimetype);
+    formData.append('file', fileStream, fileName);
+    formData.append('type', contentType);
     formData.append('messaging_product', 'whatsapp');
 
-    // const fileBuffer = await fs.readFile(mediaMessage.media);
+    const config = {
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        ...formData.getHeaders()
+      },
+      maxBodyLength: Infinity,
+    };
 
-    // const fileBlob = new Blob([fileBuffer], { type: mediaMessage.mimetype });
-    // formData.append('file', fileBlob);
-    // formData.append('typeFile', mediaMessage.mimetype);
-    // formData.append('messaging_product', 'whatsapp');
+    const url = `${process.env.WA_BUSINESS_URL}/${process.env.WA_BUSINESS_VERSION}/${this.number}/media`;
+    const response = await axios.post(url, formData, config);
 
-    const headers = { Authorization: `Bearer ${this.token}` };
-    const res = await axios.post(
-      process.env.API_URL + '/' + process.env.VERSION + '/' + this.number + '/media',
-      formData,
-      { headers },
-    );
-    return res.data.id;
+    // Exclui o arquivo temporário se ele foi criado
+    if (filePath) {
+      try {
+        unlinkSync(filePath);
+        this.logger.log(`Arquivo temporário excluído: ${filePath}`);
+      } catch (error) {
+        this.logger.error(`Erro ao excluir arquivo temporário: ${error}`);
+      }
+    }
+
+    return response.data.id;
   }
 
   protected async prepareMediaMessage(mediaMessage: MediaMessage) {
@@ -1054,6 +1079,10 @@ export class BusinessStartupService extends ChannelStartupService {
         mediaMessage.fileName = 'video.mp4';
       }
 
+      if (mediaMessage.mediatype === 'audio' && !mediaMessage.fileName) {
+        mediaMessage.fileName = 'audio.mp3';
+      }
+
       let mimetype: string;
 
       const prepareMedia: any = {
@@ -1066,16 +1095,16 @@ export class BusinessStartupService extends ChannelStartupService {
 
       if (isURL(mediaMessage.media)) {
         mimetype = mime.getType(mediaMessage.media);
+        prepareMedia.mimetype = mimetype;
         prepareMedia.id = mediaMessage.media;
         prepareMedia.type = 'link';
       } else {
         mimetype = mime.getType(mediaMessage.fileName);
+        prepareMedia.mimetype = mimetype;
         const id = await this.getIdMedia(prepareMedia);
         prepareMedia.id = id;
         prepareMedia.type = 'id';
       }
-
-      prepareMedia.mimetype = mimetype;
 
       return prepareMedia;
     } catch (error) {
