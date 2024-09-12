@@ -22,7 +22,7 @@ services:
     networks:
       - evolution-net
     environment:
-      - PGADMIN_DEFAULT_EMAIL=EMAIL
+      - PGADMIN_DEFAULT_EMAIL=julio@agendor.com.br
       - PGADMIN_DEFAULT_PASSWORD=PASSWORD  
     volumes:
       - pgadmin_data:/var/lib/pgadmin
