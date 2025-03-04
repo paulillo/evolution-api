@@ -445,7 +445,7 @@ export class BusinessStartupService extends ChannelStartupService {
               ...this.messageContactsJson(received),
             },
             contextInfo: this.messageContactsJson(received)?.contextInfo,
-            messageType: 'conversation',
+            messageType: received.messages[0].contacts.length > 1 ? 'contactsArrayMessage' : 'contactMessage',
             messageTimestamp: parseInt(received.messages[0].timestamp) as number,
             source: 'unknown',
             instanceId: this.instanceId,
