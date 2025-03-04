@@ -257,8 +257,8 @@ export class BusinessStartupService extends ChannelStartupService {
       };
     } else {
       content.contactsArrayMessage = {
-        displayName: `${message.length} contacts`,
-        contacts: message.map((contact) => {
+        displayName: `${message.contacts.length} contacts`,
+        contacts: message.contacts.map((contact) => {
           return {
             displayName: contact.name.formatted_name,
             vcard: vcard(contact),
